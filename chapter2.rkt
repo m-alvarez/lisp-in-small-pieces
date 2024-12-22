@@ -147,6 +147,10 @@
         (ev-variable (context-fenv ctx) expr))
        ((list 'dynamic expr)
         (ev-variable (context-denv ctx) expr))
+       ((list 'funcall rator rands ...)
+        (ev-funcall ctx rator rands))
+       ((list 'apply rator rands)
+        (apply ev-funcall ctx rator rands))
        ((list 'let bindings body ...)
         (let* ((vars (map car bindings))
                (exprs (map cadr bindings)))
@@ -186,6 +190,13 @@
   (let? ((rator (if (symbol? rator)
                     (ev-variable (context-fenv ctx) rator)
                     (evaluate ctx rator))))
+        (invoke ctx rator rands)))
+
+(define (ev-funcall ctx rator rands)
+  (let? ((rator (evaluate ctx rator)))
+        (invoke ctx rator rands)))
+
+(define (invoke ctx rator rands)
         (match rator
           ((list 'function lenv fenv args body)
            (let? ((vals (map-result (lambda (expr) (evaluate ctx expr)) rands)))
@@ -197,7 +208,7 @@
            #:when (procedure? proc)
            (let? ((vals (map-result (lambda (expr) (evaluate ctx expr)) rands)))
                  (ev-ok (apply rator vals))))
-          (_ (ev-err (format "I don't know how to invoke ~v" rator))))))
+          (_ (ev-err (format "I don't know how to invoke ~v" rator)))))
 
 (define-syntax push!
   (syntax-rules ()
@@ -247,11 +258,13 @@
        ((cons 'ok _) (my-lisp-2 exprs ...))
        ((cons 'error err) (display err) (display "\n"))))))
 
-(trace evaluate)
 (my-lisp-2
- (let ((x 99))
-   (flet ((double-x (lambda () (+ (dynamic x) x))))
-         (dlet ((x 5))
-               (display (double-x)))
-         (dlet ((x 10))
-               (display (double-x))))))
+  (flet ((add (lambda (x y) ((dynamic add) x y))))
+    (let ((double (lambda (x) (add x x))))
+      (dlet ((add (lambda (x y) (+ x y))))
+            (display (funcall double 5))
+            (display "\n"))
+      (dlet ((add (lambda (x y) (- x y))))
+            (display (funcall double 5))
+            (display "\n")))))
+    
